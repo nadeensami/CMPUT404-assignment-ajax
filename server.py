@@ -22,7 +22,7 @@
 
 
 import flask
-from flask import Flask, request
+from flask import Flask, request, redirect, Response
 import json
 app = Flask(__name__)
 app.debug = True
@@ -33,68 +33,114 @@ app.debug = True
 #    'b':{'x':2, 'y':3}
 # }
 
+
+'''
+References:
+  - https://stackoverflow.com/a/46199430 from author Yasir, https://stackoverflow.com/users/3120253/yasir
+'''
 class World:
-    def __init__(self):
-        self.clear()
-        
-    def update(self, entity, key, value):
-        entry = self.space.get(entity,dict())
-        entry[key] = value
-        self.space[entity] = entry
+  def __init__(self):
+    self.clear()
+      
+  def update(self, entity, key, value):
+    entry = self.space.get(entity, dict())
+    entry[key] = value
+    self.space[entity] = entry
 
-    def set(self, entity, data):
-        self.space[entity] = data
+  def set(self, entity, data):
+    self.space[entity] = data
 
-    def clear(self):
-        self.space = dict()
+  def clear(self):
+    self.space = dict()
 
-    def get(self, entity):
-        return self.space.get(entity,dict())
-    
-    def world(self):
-        return self.space
+  def get(self, entity):
+    return self.space.get(entity, dict())
+  
+  def world(self):
+    return self.space
 
 # you can test your webservice from the commandline
 # curl -v   -H "Content-Type: application/json" -X PUT http://127.0.0.1:5000/entity/X -d '{"x":1,"y":1}' 
 
-myWorld = World()          
+myWorld = World()
 
 # I give this to you, this is how you get the raw body/data portion of a post in flask
 # this should come with flask but whatever, it's not my project.
 def flask_post_json():
-    '''Ah the joys of frameworks! They do so much work for you
-       that they get in the way of sane operation!'''
-    if (request.json != None):
-        return request.json
-    elif (request.data != None and request.data.decode("utf8") != u''):
-        return json.loads(request.data.decode("utf8"))
-    else:
-        return json.loads(request.form.keys()[0])
+  '''Ah the joys of frameworks! They do so much work for you
+      that they get in the way of sane operation!'''
+  if (request.json != None):
+    return request.json
+  elif (request.data != None and request.data.decode("utf8") != u''):
+    return json.loads(request.data.decode("utf8"))
+  else:
+    return json.loads(request.form.keys()[0])
 
 @app.route("/")
 def hello():
-    '''Return something coherent here.. perhaps redirect to /static/index.html '''
-    return None
+  '''Return something coherent here.. perhaps redirect to /static/index.html '''
+  return redirect("/static/index.html", code=302)
 
 @app.route("/entity/<entity>", methods=['POST','PUT'])
 def update(entity):
-    '''update the entities via this interface'''
-    return None
+  '''update the entities via this interface'''
+  # get entities to update
+  data = flask_post_json()
+  
+  #iterate through the data and update each key
+  for key, value in data.items():
+    myWorld.update(entity, key, value)
 
-@app.route("/world", methods=['POST','GET'])    
-def world():
-    '''you should probably return the world here'''
-    return None
+  # JSONify data
+  response_data = json.dumps(myWorld.get(entity))
+
+  # return response object
+  return Response(
+    response = response_data,
+    status = 200,
+    mimetype="application/json"
+  )
 
 @app.route("/entity/<entity>")    
 def get_entity(entity):
-    '''This is the GET version of the entity interface, return a representation of the entity'''
-    return None
+  '''This is the GET version of the entity interface, return a representation of the entity'''
+  # JSONify data
+  data = json.dumps(myWorld.get(entity))
+
+  # return response object
+  return Response(
+    response = data,
+    status = 200,
+    mimetype="application/json"
+  )
+
+@app.route("/world", methods=['POST','GET'])    
+def world():
+  '''you should probably return the world here'''
+  # JSONify data
+  data = json.dumps(myWorld.world())
+
+  # return response object
+  return Response(
+    response = data,
+    status = 200,
+    mimetype="application/json"
+  )
 
 @app.route("/clear", methods=['POST','GET'])
 def clear():
-    '''Clear the world out!'''
-    return None
+  '''Clear the world out!'''
+  # clear the world
+  myWorld.clear()
+
+  # JSONify the data
+  data = json.dumps(myWorld.world()) # empty object
+
+  return Response(
+    response = data,
+    status = 200,
+    mimetype="application/json"
+  )
 
 if __name__ == "__main__":
-    app.run()
+  app.run()
